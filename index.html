@@ -148,6 +148,7 @@
             color: #6c757d;
             font-size: 0.95em;
             margin-bottom: 10px;
+            font-weight: 500;
         }
 
         .shop-info {
@@ -236,6 +237,15 @@
             cursor: not-allowed;
         }
 
+        .error-message {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            border: 1px solid #f5c6cb;
+        }
+
         @media (max-width: 768px) {
             header h1 {
                 font-size: 1.8em;
@@ -306,14 +316,33 @@
     </div>
 
     <script>
-        // Supabase configuration
+        // Initialize Supabase client
         const SUPABASE_URL = 'https://mpizntvbwkktnzmnjtep.supabase.co';
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1waXpudHZid2trdG56bW5qdGVwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIwNzk4OTUsImV4cCI6MjA3NzY1NTg5NX0.zIfHbflZx7LOD6NdHUgGufl8zai0vXtvBmCoEyOXEq0';
-        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        
+        // Create Supabase client using the global supabase object from CDN
+        let supabaseClient;
+        
+        // Wait for DOM and Supabase to be ready
+        document.addEventListener('DOMContentLoaded', function() {
+            try {
+                // Access the global supabase object from the CDN
+                if (typeof supabase === 'undefined') {
+                    throw new Error('Supabase library not loaded');
+                }
+                
+                supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+                console.log('Supabase client initialized successfully');
+                init();
+            } catch (error) {
+                console.error('Error initializing Supabase:', error);
+                document.getElementById('results').innerHTML = 
+                    '<div class="error-message"><strong>Connection Error:</strong> Unable to connect to Supabase. Please check your credentials and try again.</div>';
+            }
+        });
 
         let currentPage = 0;
         const pageSize = 50;
-        let allShops = [];
         let displayedShops = [];
         let totalCount = 0;
 
@@ -333,20 +362,20 @@
             } catch (error) {
                 console.error('Initialization error:', error);
                 document.getElementById('results').innerHTML = 
-                    '<div class="no-results">Error connecting to database. Please check your Supabase credentials.</div>';
+                    '<div class="error-message"><strong>Database Error:</strong> ' + error.message + '</div>';
             }
         }
 
         // Load statistics
         async function loadStats() {
-            const { count } = await supabase
+            const { count } = await supabaseClient
                 .from('motorcycle_shops')
                 .select('*', { count: 'exact', head: true });
             
             totalCount = count;
             document.getElementById('totalShops').textContent = count.toLocaleString();
 
-            const { data: countries } = await supabase
+            const { data: countries } = await supabaseClient
                 .from('motorcycle_shops')
                 .select('country')
                 .order('country');
@@ -357,7 +386,7 @@
 
         // Load countries for filter
         async function loadCountries() {
-            const { data } = await supabase
+            const { data } = await supabaseClient
                 .from('motorcycle_shops')
                 .select('country')
                 .order('country');
@@ -380,7 +409,7 @@
             
             if (!country) return;
 
-            const { data } = await supabase
+            const { data } = await supabaseClient
                 .from('motorcycle_shops')
                 .select('city')
                 .eq('country', country)
@@ -403,7 +432,7 @@
                 displayedShops = [];
             }
 
-            let query = supabase
+            let query = supabaseClient
                 .from('motorcycle_shops')
                 .select('*')
                 .range(currentPage * pageSize, (currentPage + 1) * pageSize - 1);
@@ -430,6 +459,8 @@
 
             if (error) {
                 console.error('Error loading shops:', error);
+                document.getElementById('results').innerHTML = 
+                    '<div class="error-message"><strong>Query Error:</strong> ' + error.message + '</div>';
                 return;
             }
 
@@ -556,9 +587,6 @@
             filters.rating = e.target.value;
             loadShops();
         });
-
-        // Initialize on page load
-        init();
     </script>
 </body>
 </html>
