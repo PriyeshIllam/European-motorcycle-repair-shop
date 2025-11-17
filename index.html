@@ -368,6 +368,7 @@
 
         // Load statistics
         async function loadStats() {
+            // 1️⃣ Get total count of rows
             const { count } = await supabaseClient
                 .from('motorcycle_shops')
                 .select('*', { count: 'exact', head: true });
@@ -375,31 +376,50 @@
             totalCount = count;
             document.getElementById('totalShops').textContent = count.toLocaleString();
 
-            const { data: countries } = await supabaseClient
-                .from('motorcycle_shops')
-                .select('country')
-                .order('country');
-            
-            const uniqueCountries = [...new Set(countries.map(c => c.country))];
+            // 2️⃣ Fetch all countries in chunks to bypass 1,000-row limit
+            const chunkSize = 1000;
+            let offset = 0;
+            let allCountries = [];
+
+            while (true) {
+                const { data, error } = await supabaseClient
+                    .from('motorcycle_shops')
+                    .select('country')
+                    .order('country')
+                    .range(offset, offset + chunkSize - 1); // range(offset, limit)
+
+                if (error) {
+                    console.error('Error fetching countries:', error);
+                    break;
+                }
+
+                if (!data || data.length === 0) break;
+
+                allCountries = allCountries.concat(data.map(c => c.country));
+                offset += chunkSize;
+            }
+
+            // 3️⃣ Remove duplicates
+            const uniqueCountries = [...new Set(allCountries)];
             document.getElementById('totalCountries').textContent = uniqueCountries.length;
-        }
+         }
+
 
         // Load countries for filter
         async function loadCountries() {
-            const { data } = await supabaseClient
-                .from('motorcycle_shops')
-                .select('country')
-                .order('country');
-            
-            const countries = [...new Set(data.map(s => s.country))];
-            const select = document.getElementById('countryFilter');
-            
-            countries.forEach(country => {
-                const option = document.createElement('option');
-                option.value = country;
-                option.textContent = country;
-                select.appendChild(option);
-            });
+
+            const { data, error } = await supabaseClient
+                .rpc('get_distinct_countries');
+
+                const countries = [...new Set(data.map(s => s.country))];
+                const select = document.getElementById('countryFilter');
+                
+                countries.forEach(country => {
+                    const option = document.createElement('option');
+                    option.value = country;
+                    option.textContent = country;
+                    select.appendChild(option);
+                });
         }
 
         // Load cities based on selected country
